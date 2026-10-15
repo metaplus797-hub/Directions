@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>屋内ナビゲーション</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="appa">
+  <header class="topbar">
+    <div class="location-info" id="locationTextView">現在地: 未取得</div>
+  </header>
+
+  <div class="controls">
+    <label class="control-item">
+      <span>フロア</span>
+      <select id="floorSpinner"></select>
+    </label>
+
+    <label class="control-item">
+      <span>目的地</span>
+      <select id="goalSpinner">
+        <option value="">目的地を選択</option>
+      </select>
+    </label>
+
+    <button id="showRouteButton">経路表示</button>
+  </div>
+
+  <div class="result" id="resultTextView">現在地と目的地を選択してください</div>
+
+  <div class="map-container">
+    <canvas id="routeView"></canvas>
+  </div>
+
+  <!-- NFC非対応環境向け: 現在地を手動でシミュレートするための入力 -->
+  <div class="nfc-sim">
+    <span>NFC読み取りシミュレート:</span>
+    <select id="nfcSimSelect"></select>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

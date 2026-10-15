@@ -1,0 +1,88 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+  background: #f2f4f7;
+  color: #222;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.topbar {
+  background: #2c3e50;
+  color: #fff;
+  padding: 10px 16px;
+  font-size: 15px;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+}
+
+.control-item {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: #555;
+  gap: 4px;
+}
+
+select, button {
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+#showRouteButton {
+  align-self: flex-end;
+  background: #2c7be5;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  padding: 8px 16px;
+}
+#showRouteButton:hover { background: #1a5fc4; }
+
+.result {
+  padding: 8px 16px;
+  background: #fffbe6;
+  border-bottom: 1px solid #f0e6b0;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.map-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #e9edf2;
+}
+
+#routeView {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+.nfc-sim {
+  padding: 8px 16px;
+  background: #eef2f7;
+  border-top: 1px solid #ddd;
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}

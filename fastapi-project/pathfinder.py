@@ -1,56 +1,87 @@
+"""
+経路探索ロジック
+
+Kotlin版 MainActivity.kt の以下の関数を Python に移植：
+- calculateWeight(nodeA, nodeB)
+- dijkstra(graph, start, goal)
+"""
+from __future__ import annotations
+
 import heapq
+import math
+from typing import Dict, List, Tuple
+
+from schemas import Node
+
+# 異なるフロア間を移動する際の固定ペナルティ（Kotlin版と同じく仮の値）
+# ※実際の建物（階段・エレベーターの移動時間）に合わせて調整してください
+FLOOR_CHANGE_PENALTY = 30.0
 
 
-# アルゴリズムを変える場合はこの関数だけ書き換えればOK
-# 引数・返り値の型は固定
-def find_route(
-    start_id: int,
-    goal_id: int,
-    nodes: dict[int, dict],
-    edges: list[tuple[int, int, float, float]],
-) -> tuple[list[dict], float, float, list[int]]:
+def calculate_weight(node_a: Node, node_b: Node) -> float:
+    """2ノード間の移動コストを計算する
+
+    同一フロア: 2D ユークリッド距離
+    異なるフロア: 固定ペナルティ（階段・エレベーター利用とみなす）
     """
-    returns:
-        path_steps  : [{"from": int, "to": int}, ...]
-        total_distance : float (メートル)
-        total_time     : float (秒)
-        path_node_ids  : [int, ...]  (スタートからゴールの順)
-    """
-    # 隣接リスト構築
-    graph: dict[int, list[tuple[int, float, float]]] = {nid: [] for nid in nodes}
-    for from_id, to_id, dist, time in edges:
-        graph[from_id].append((to_id, dist, time))
-        graph[to_id].append((from_id, dist, time))
+    if node_a.floor == node_b.floor:
+        return math.hypot(node_b.x - node_a.x, node_b.y - node_a.y)
+    return FLOOR_CHANGE_PENALTY
 
-    # Dijkstra（距離最小）
-    inf = float("inf")
-    best_dist = {nid: inf for nid in nodes}
-    best_dist[start_id] = 0.0
-    prev: dict[int, tuple[int, float, float]] = {}  # node -> (from_node, dist, time)
-    pq = [(0.0, start_id)]
+
+def dijkstra(
+    graph: Dict[str, Node], start: str, goal: str
+) -> Tuple[List[str], float]:
+    """ダイクストラ法で start から goal までの最短経路を求める
+
+    Returns:
+        (経路のノードIDリスト, 総距離)。経路が見つからない場合は ([], 0.0)
+    """
+    if start not in graph or goal not in graph:
+        return [], 0.0
+
+    dist: Dict[str, float] = {start: 0.0}
+    prev: Dict[str, str | None] = {}
+    visited: set[str] = set()
+
+    # (距離, ノードID) のヒープ
+    pq: List[Tuple[float, str]] = [(0.0, start)]
 
     while pq:
-        d, u = heapq.heappop(pq)
-        if d > best_dist[u]:
+        current_dist, current_id = heapq.heappop(pq)
+
+        if current_id in visited:
             continue
-        for v, w, t in graph[u]:
-            nd = best_dist[u] + w
-            if nd < best_dist[v]:
-                best_dist[v] = nd
-                prev[v] = (u, w, t)
-                heapq.heappush(pq, (nd, v))
+        visited.add(current_id)
 
-    # パス復元
-    path_nodes: list[int] = []
-    node = goal_id
-    while node != start_id:
-        path_nodes.append(node)
-        node = prev[node][0]
-    path_nodes.append(start_id)
-    path_nodes.reverse()
+        if current_id == goal:
+            break
 
-    path_steps = [{"from": path_nodes[i], "to": path_nodes[i + 1]} for i in range(len(path_nodes) - 1)]
-    total_distance = best_dist[goal_id]
-    total_time = sum(prev[path_nodes[i + 1]][2] for i in range(len(path_nodes) - 1))
+        current_node = graph.get(current_id)
+        if current_node is None:
+            continue
 
-    return path_steps, total_distance, total_time, path_nodes
+        for neighbor_id in current_node.neighbors:
+            neighbor_node = graph.get(neighbor_id)
+            if neighbor_node is None:
+                continue
+
+            weight = calculate_weight(current_node, neighbor_node)
+            new_dist = current_dist + weight
+
+            if new_dist < dist.get(neighbor_id, math.inf):
+                dist[neighbor_id] = new_dist
+                prev[neighbor_id] = current_id
+                heapq.heappush(pq, (new_dist, neighbor_id))
+
+    # 経路の復元
+    path: List[str] = []
+    node: str | None = goal
+    while node is not None:
+        path.append(node)
+        node = prev.get(node)
+    path.reverse()
+
+    if path and path[0] == start:
+        return path, dist.get(goal, 0.0)
+    return [], 0.0
