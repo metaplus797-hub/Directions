@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ノードCSV編集</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="editor-page">
+  <div class="editor-shell">
+    <header class="editor-header">
+      <h1>ノードCSV編集</h1>
+      <div class="header-actions">
+        <button id="addRowBtn" class="secondary-btn" type="button">行追加</button>
+        <button id="saveBtn" class="primary-btn" type="button">CSV保存</button>
+        <a class="nav-link" href="/">地図に戻る</a>
+        <a class="nav-link" href="/map-editor.html">マップ編集</a>
+      </div>
+    </header>
+
+    <div id="status" class="status">CSVを読み込み中...</div>
+
+    <div class="editor-table-wrap">
+      <table id="nodeTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>名前</th>
+            <th>X</th>
+            <th>Y</th>
+            <th>隣接ノード</th>
+            <th>目的地</th>
+            <th>フロア</th>
+            <th>画像名</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="editor.js"></script>
+</body>
+</html>

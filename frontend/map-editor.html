@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>マップ編集</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="map-editor-page">
+  <div class="map-editor-shell">
+    <header class="editor-header">
+      <div>
+        <h1>マップノード編集</h1>
+        <p class="subtitle">画像を背景に配置して、ノードの位置と隣接を調整できます</p>
+      </div>
+      <div class="header-actions">
+        <a class="nav-link" href="/">地図に戻る</a>
+      </div>
+    </header>
+
+    <section class="map-config panel">
+      <h2>背景画像とフロア設定</h2>
+      <div class="config-grid">
+        <label>
+          <span>フロア</span>
+          <select id="floorSelect"></select>
+        </label>
+        <label>
+          <span>フロア名（表示用）</span>
+          <input id="floorLabelInput" type="text" placeholder="例: 6F" />
+        </label>
+        <label class="file-field">
+          <span>背景画像を追加</span>
+          <input id="mapImageUpload" type="file" accept="image/*" />
+        </label>
+      </div>
+      <div class="config-actions">
+        <button id="saveMapMetaBtn" type="button">画像とフロア情報を保存</button>
+      </div>
+    </section>
+
+    <div id="status" class="status">読み込み中...</div>
+
+    <div class="map-editor-layout">
+      <div class="canvas-panel panel">
+        <canvas id="mapCanvas" width="900" height="700"></canvas>
+      </div>
+      <aside class="property-panel panel">
+        <h2>ノード情報</h2>
+        <div id="nodeInfo" class="node-info-empty">ノードを選択してください</div>
+        <div class="editor-actions">
+          <button id="addNodeBtn" type="button">ノード追加</button>
+          <button id="recalcNeighborsBtn" type="button">近いノードを自動接続</button>
+          <button id="saveNodesBtn" type="button" class="primary-btn">CSV保存</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script src="map-editor.js"></script>
+</body>
+</html>
