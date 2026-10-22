@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Directions 公開のしくみ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=BIZ+UDPGothic:wght@400;700&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  :root {
+    color-scheme: light;
+    --bg: #f2f4f6;
+    --surface: #ffffff;
+    --soft: #e8ecf0;
+    --ink: #17202a;
+    --muted: #596472;
+    --line: #d5dce3;
+    --line-strong: #a7b2be;
+    --cf: #b46a00;
+    --cf-soft: #fcf0de;
+    --cf-ink: #8a5000;
+    --vc: #2a5fc9;
+    --vc-soft: #e5edfb;
+    --vc-ink: #1e4699;
+    --bad: #c42f3b;
+    --display: "Zen Kaku Gothic New", "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", sans-serif;
+    --body: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    --mono: "BIZ UDGothic", ui-monospace, "Consolas", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #11161c;
+      --surface: #182029;
+      --soft: #222c37;
+      --ink: #e5eaf0;
+      --muted: #9ba7b4;
+      --line: #2a3541;
+      --line-strong: #4d5b6b;
+      --cf: #e99e38;
+      --cf-soft: #3a2a12;
+      --cf-ink: #f3bd6b;
+      --vc: #6e9cff;
+      --vc-soft: #172a4d;
+      --vc-ink: #a9c4ff;
+      --bad: #ff7a83;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #11161c;
+    --surface: #182029;
+    --soft: #222c37;
+    --ink: #e5eaf0;
+    --muted: #9ba7b4;
+    --line: #2a3541;
+    --line-strong: #4d5b6b;
+    --cf: #e99e38;
+    --cf-soft: #3a2a12;
+    --cf-ink: #f3bd6b;
+    --vc: #6e9cff;
+    --vc-soft: #172a4d;
+    --vc-ink: #a9c4ff;
+    --bad: #ff7a83;
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.85;
+  }
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding-inline: 20px;
+    padding-block: 40px 72px;
+  }
+  a { color: var(--vc-ink); }
+  a:focus-visible { outline: 2px solid var(--vc); outline-offset: 2px; border-radius: 2px; }
+  p { margin: 0 0 14px; }
+  ul { margin: 0 0 14px; padding-left: 1.3em; }
+  li + li { margin-top: 4px; }
+  code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--soft);
+    padding: 1px 5px;
+    border-radius: 4px;
+    overflow-wrap: anywhere;
+  }
+
+  /* header */
+  .kicker { font-size: 13px; letter-spacing: 0.08em; color: var(--muted); margin: 0; }
+  h1 {
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: clamp(30px, 6vw, 44px);
+    line-height: 1.3;
+    margin: 6px 0 16px;
+    text-wrap: balance;
+  }
+  .lede { font-size: 17px; max-width: 36em; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); margin: 0; }
+
+  /* abstract → concrete ladder */
+  .ladder { margin-top: 32px; padding: 18px 8px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  .ladder ol { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(5, 1fr); position: relative; }
+  .ladder ol::before {
+    content: ""; position: absolute; left: 10%; right: 10%; top: 10px; height: 2px; background: var(--line-strong);
+  }
+  .ladder li { margin: 0; position: relative; }
+  .ladder a {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    color: var(--ink); text-decoration: none; font-size: 12.5px; line-height: 1.35; text-align: center;
+  }
+  .ladder a:hover .dot { background: var(--ink); color: var(--surface); }
+  .ladder .dot {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--surface); border: 2px solid var(--ink);
+    display: grid; place-items: center; font-size: 11px; font-weight: 700; position: relative; z-index: 1;
+  }
+  .ladder-ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin: 10px 4px 0; }
+
+  /* sections */
+  section { padding-top: 64px; }
+  .eyebrow { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); letter-spacing: 0.04em; margin: 0 0 6px; }
+  .pips { display: inline-flex; gap: 3px; }
+  .pips i { width: 9px; height: 9px; border: 1.5px solid var(--ink); border-radius: 2px; }
+  .pips i.on { background: var(--ink); }
+  h2 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(23px, 4vw, 29px);
+    line-height: 1.4;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 18px;
+    line-height: 1.5;
+    margin: 36px 0 8px;
+    text-wrap: balance;
+  }
+
+  /* level 1 tiles */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+  .tile {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 20px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
+  }
+  .tile .say { font-family: var(--display); font-weight: 700; font-size: 20px; line-height: 1.5; margin: 0; }
+  .tile .like { font-size: 14px; color: var(--muted); margin: 0; }
+
+  .chip {
+    display: inline-block; font-size: 12px; font-weight: 700; padding: 0 8px;
+    border-radius: 4px; letter-spacing: 0.02em; line-height: 1.8; white-space: nowrap;
+  }
+  .chip-cf { background: var(--cf-soft); color: var(--cf-ink); border: 1px solid var(--cf); }
+  .chip-vc { background: var(--vc-soft); color: var(--vc-ink); border: 1px solid var(--vc); }
+  .chip-done { background: var(--soft); color: var(--ink); border: 1px solid var(--line-strong); }
+
+  /* figures */
+  figure.fig {
+    margin: 24px 0; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 20px;
+  }
+  .fig svg {
+    display: block; width: 100%; height: auto; margin-inline: auto;
+    color: var(--ink); fill: currentColor; font-family: var(--body); font-size: 13px;
+  }
+  .fig svg.mx-520 { max-width: 520px; }
+  .fig svg.mx-560 { max-width: 560px; }
+  figcaption { margin-top: 14px; font-size: 14px; color: var(--muted); line-height: 1.75; }
+  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .panel-label { font-size: 13px; font-weight: 700; margin: 0 0 4px; letter-spacing: 0.04em; }
+  @media (max-width: 640px) {
+    .panels { grid-template-columns: 1fr; }
+    figure.fig { padding: 14px; }
+  }
+
+  .fig text { text-anchor: middle; }
+  .fig .end { text-anchor: end; }
+  .fig .t-b { font-weight: 700; }
+  .fig .t-sm { font-size: 12px; }
+  .fig .t-xs { font-size: 10.5px; }
+  .fig .t-mono { font-family: var(--mono); }
+  .fig .t-mut { fill: var(--muted); }
+  .fig .t-cf { fill: var(--cf-ink); }
+  .fig .t-vc { fill: var(--vc-ink); }
+  .fig .t-bad { fill: var(--bad); }
+  .fig .box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.5; }
+  .fig .box-soft { fill: var(--soft); stroke: none; }
+  .fig .box-ghost { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.5; stroke-dasharray: 5 4; }
+  .fig .box-cf { fill: var(--cf-soft); stroke: var(--cf); stroke-width: 1.5; }
+  .fig .box-vc { fill: var(--vc-soft); stroke: var(--vc); stroke-width: 1.5; }
+  .fig .ln { stroke: currentColor; stroke-width: 1.5; fill: none; }
+  .fig .dash { stroke-dasharray: 5 4; }
+  .fig .life { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 4; }
+  .fig .lbl { paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+  .fig .num { fill: var(--ink); }
+  .fig .t-num { fill: var(--surface); font-weight: 700; font-size: 11px; }
+  .fig .act { fill: var(--vc); }
+  .fig .br-cf { fill: none; stroke: var(--cf); stroke-width: 1.5; }
+  .fig .br-vc { fill: none; stroke: var(--vc); stroke-width: 1.5; }
+  .fig .x { stroke: var(--bad); stroke-width: 2.5; stroke-linecap: round; }
+
+  /* tables */
+  .tbl-wrap { overflow-x: auto; margin: 16px 0 20px; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; background: var(--surface); border: 1px solid var(--line); }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.65; }
+  th { font-size: 13px; color: var(--muted); font-weight: 700; background: var(--soft); white-space: nowrap; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* glossary */
+  .terms { display: grid; grid-template-columns: 7.5em 1fr; margin: 0; border-top: 1px solid var(--line); }
+  .terms dt, .terms dd { margin: 0; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .terms dt { font-family: var(--display); font-weight: 700; padding-right: 16px; }
+  @media (max-width: 520px) {
+    .terms { grid-template-columns: 1fr; }
+    .terms dt { border-bottom: none; padding-bottom: 0; }
+    .terms dd { padding-top: 2px; }
+  }
+
+  /* numbered lists that mirror a real order */
+  ol.steps { list-style: none; padding: 0; margin: 16px 0 20px; counter-reset: s; border-top: 1px solid var(--line); }
+  ol.steps > li {
+    counter-increment: s; margin: 0;
+    display: grid; grid-template-columns: 30px 1fr; column-gap: 14px;
+    padding: 14px 0; border-bottom: 1px solid var(--line);
+  }
+  ol.steps > li::before {
+    content: counter(s);
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--ink); color: var(--surface);
+    font-weight: 700; font-size: 13px; line-height: 26px; text-align: center; margin-top: 2px;
+  }
+  ol.steps .body { display: block; }
+  ol.steps .body > .chip { display: block; width: fit-content; margin-bottom: 4px; }
+
+  .note { background: var(--soft); border-radius: 8px; padding: 14px 16px; font-size: 15px; margin: 16px 0; }
+  .note p:last-child { margin-bottom: 0; }
+  .small { font-size: 14px; color: var(--muted); }
+
+  footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  footer ul { padding-left: 1.2em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="kicker">屋内ナビアプリ Directions</p>
+    <h1>Directions 公開のしくみ</h1>
+    <p class="lede">いまは開発者のPCの中でしか動いていない屋内ナビを、だれでもスマホで開けるようにします。使うのは Vercel と Cloudflare の2つです。ざっくりした話から始めて、だんだん具体的にしていきます。</p>
+    <p class="meta"><span>料金などは2026年10月時点の情報</span></p>
+
+    <nav class="ladder" aria-label="目次">
+      <ol>
+        <li><a href="#lv1"><span class="dot">1</span>ひとことで</a></li>
+        <li><a href="#lv2"><span class="dot">2</span>たとえ話</a></li>
+        <li><a href="#lv3"><span class="dot">3</span>用語</a></li>
+        <li><a href="#lv4"><span class="dot">4</span>実際の流れ</a></li>
+        <li><a href="#lv5"><span class="dot">5</span>作業と費用</a></li>
+      </ol>
+      <div class="ladder-ends" aria-hidden="true"><span>抽象</span><span>具体</span></div>
+    </nav>
+  </header>
+
+  <!-- Level 1 -->
+  <section id="lv1">
+    <p class="eyebrow"><span class="pips" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i><i></i></span>レベル 1　いちばん抽象</p>
+    <h2>ひとことで言うと</h2>
+    <div class="tiles">
+      <div class="tile">
+        <span class="chip chip-vc">Vercel</span>
+        <p class="say">アプリを置いて、24時間動かしてくれる場所</p>
+        <p class="like">お店でいうと: 管理人つきの貸し店舗</p>
+      </div>
+      <div class="tile">
+        <span class="chip chip-cf">Cloudflare</span>
+        <p class="say">そのアプリの住所（ドメイン）を管理する場所</p>
+        <p class="like">お店でいうと: 住所の登記所と住所録</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Level 2 -->
+  <section id="lv2">
+    <p class="eyebrow"><span class="pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span>レベル 2</p>
+    <h2>お店にたとえると</h2>
+    <p>いまは開発者のPCで <code>localhost:8000</code> を開いて動かしています。自宅のキッチンで料理ができている状態です。食べられるのは家の中の人だけで、PCを閉じればお店も閉まります。</p>
+
+    <figure class="fig">
+      <div class="panels">
+        <div>
+          <p class="panel-label">いま</p>
+          <svg viewBox="0 0 340 200" role="img" aria-label="いま: アプリはあなたのPCの中だけで動いていて、ほかの人のスマホからは届かない。PCを閉じると止まる。">
+            <defs>
+              <marker id="m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+              </marker>
+            </defs>
+            <text x="104" y="28" class="t-b">あなたのPC</text>
+            <rect x="16" y="40" width="176" height="120" rx="10" class="box"/>
+            <rect x="36" y="70" width="136" height="60" rx="6" class="box-soft"/>
+            <text x="104" y="96" class="t-b">アプリ</text>
+            <text x="104" y="116" class="t-sm t-mono t-mut">localhost:8000</text>
+            <text x="104" y="186" class="t-sm t-mut">PCを閉じると止まる</text>
+
+            <rect x="266" y="64" width="44" height="72" rx="8" class="box"/>
+            <rect x="273" y="74" width="30" height="50" rx="3" class="box-soft"/>
+            <text x="288" y="160" class="t-sm">ほかの人のスマホ</text>
+
+            <line x1="260" y1="100" x2="200" y2="100" class="ln dash" marker-end="url(#m1)"/>
+            <line x1="223" y1="93" x2="237" y2="107" class="x"/>
+            <line x1="237" y1="93" x2="223" y2="107" class="x"/>
+            <text x="230" y="84" class="t-sm t-bad t-b">届かない</text>
+          </svg>
+        </div>
+        <div>
+          <p class="panel-label">公開後</p>
+          <svg viewBox="0 0 340 200" role="img" aria-label="公開後: だれかのスマホは、まず Cloudflare の住所録で場所を聞き、次に Vercel にあるアプリにアクセスする。">
+            <defs>
+              <marker id="m1b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+              </marker>
+            </defs>
+            <rect x="38" y="66" width="44" height="72" rx="8" class="box"/>
+            <rect x="45" y="76" width="30" height="50" rx="3" class="box-soft"/>
+            <text x="60" y="160" class="t-sm">だれかのスマホ</text>
+
+            <rect x="200" y="16" width="124" height="60" rx="8" class="box-cf"/>
+            <text x="262" y="42" class="t-b">住所録</text>
+            <text x="262" y="62" class="t-sm t-cf">Cloudflare</text>
+
+            <rect x="200" y="124" width="124" height="60" rx="8" class="box-vc"/>
+            <text x="262" y="150" class="t-b">アプリ</text>
+            <text x="262" y="170" class="t-sm t-vc">Vercel・24時間</text>
+
+            <line x1="88" y1="90" x2="194" y2="50" class="ln" marker-end="url(#m1b)"/>
+            <text x="122" y="50" class="t-sm lbl">① 場所を聞く</text>
+            <line x1="88" y1="116" x2="194" y2="150" class="ln" marker-end="url(#m1b)"/>
+            <text x="146" y="174" class="t-sm lbl">② アクセス</text>
+          </svg>
+        </div>
+      </div>
+      <figcaption>左: いまはアプリが開発者のPCの中だけで動いていて、ほかの人は開けません。右: 公開後は、だれのスマホからでも、住所録で場所を調べてアプリにたどり着けます。</figcaption>
+    </figure>
+
+    <p>一般公開するとは、お店を出すことです。そのためには次の3つが必要です。</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>お店でいうと</th><th>Webでいうと</th><th>担当</th></tr></thead>
+        <tbody>
+          <tr><td>店舗（建物・厨房・店員）</td><td>アプリを動かすコンピューター</td><td><span class="chip chip-vc">Vercel</span></td></tr>
+          <tr><td>住所と看板</td><td>ドメイン（例: <code>nav.example.com</code>）</td><td><span class="chip chip-cf">Cloudflare</span></td></tr>
+          <tr><td>「その住所はどこ？」に答える住所録</td><td>DNS</td><td><span class="chip chip-cf">Cloudflare</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Vercel は管理人つきの貸し店舗</h3>
+    <ul>
+      <li>建物の建設・掃除・警備は Vercel がやってくれます。サーバーの管理はいりません。</li>
+      <li>レシピ（コード）を GitHub に置くと、自動で厨房にセットしてくれます。</li>
+      <li>店員はお客さんが来たときだけ出勤します。暇な時間の人件費がかからないので安く済みます。</li>
+      <li>メニュー表や写真は全国の棚に置いてあり、お客さんの近くから手渡されます。</li>
+    </ul>
+
+    <h3>Cloudflare は住所の登記所と住所録</h3>
+    <ul>
+      <li>住所（ドメイン）を原価で買えます。</li>
+      <li>「<code>nav.example.com</code> は Vercel にあるお店です」と案内してくれます。</li>
+    </ul>
+
+    <h3>住所とお店を別々にしておく理由</h3>
+    <p>お店を Vercel から別の場所に移すことになっても、住所録の行き先を書き換えるだけで済みます。お客さんは同じ住所でたどり着けます。</p>
+
+    <figure class="fig">
+      <svg class="mx-560" viewBox="0 0 480 170" role="img" aria-label="NFCタグに書いたURLは住所録を経由してお店に届く。引っ越すときは住所録の矢印を付け替えるだけで、タグはそのまま使える。">
+        <defs>
+          <marker id="m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <rect x="12" y="52" width="110" height="64" rx="10" class="box"/>
+        <text x="67" y="79" class="t-b">NFCタグ</text>
+        <text x="67" y="99" class="t-xs t-mono t-mut">nav.example.com</text>
+
+        <line x1="122" y1="84" x2="170" y2="84" class="ln" marker-end="url(#m2)"/>
+        <text x="146" y="76" class="t-sm lbl">開く</text>
+
+        <rect x="176" y="52" width="110" height="64" rx="8" class="box-cf"/>
+        <text x="231" y="80" class="t-b">住所録</text>
+        <text x="231" y="100" class="t-sm t-cf">Cloudflare</text>
+
+        <rect x="352" y="10" width="118" height="56" rx="8" class="box-vc"/>
+        <text x="411" y="34" class="t-b">Vercel</text>
+        <text x="411" y="53" class="t-xs t-vc">いまの置き場所</text>
+
+        <rect x="352" y="104" width="118" height="56" rx="8" class="box-ghost"/>
+        <text x="411" y="128" class="t-b">別のサービス</text>
+        <text x="411" y="147" class="t-xs t-mut">将来の引っ越し先</text>
+
+        <line x1="286" y1="72" x2="346" y2="40" class="ln" marker-end="url(#m2)"/>
+        <text x="304" y="44" class="t-sm lbl">いま</text>
+        <line x1="286" y1="96" x2="346" y2="128" class="ln dash" marker-end="url(#m2)"/>
+        <text x="300" y="150" class="t-sm lbl">付け替え</text>
+      </svg>
+      <figcaption>引っ越すときは、住所録の矢印を付け替えるだけです。タグに書いたURLは変わらないので、タグはそのまま使えます。</figcaption>
+    </figure>
+
+    <p>このアプリでは、NFCタグに URL を書き込みます。URL を書いたタグなら、iPhone でも Android でも、かざすだけでブラウザが開きます。タグには住所が物理的に書き込まれるので、仮の住所（<code>xxx.vercel.app</code>）のままにしておくと、引っ越しのたびにタグを全部書き直すことになります。最初に自分の住所を取っておくのはこのためです。</p>
+  </section>
+
+  <!-- Level 3 -->
+  <section id="lv3">
+    <p class="eyebrow"><span class="pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>レベル 3</p>
+    <h2>用語を少しだけ</h2>
+    <dl class="terms">
+      <dt>ドメイン</dt>
+      <dd><code>nav.example.com</code> のような、人が読める住所。毎年料金を払って借ります。</dd>
+      <dt>DNS</dt>
+      <dd>ドメインを、コンピューターの本当の住所（IPアドレスという数字）に変える電話帳。Cloudflare が担当します。</dd>
+      <dt>HTTPS</dt>
+      <dd>通信の暗号化。URL が <code>https://</code> で始まり、鍵マークが付きます。ページの中でNFCを読み取る機能（Web NFC）は HTTPS でないと動きません。Vercel が無料で自動的に設定します。</dd>
+      <dt>デプロイ</dt>
+      <dd>コードを公開用のコンピューターに載せること。</dd>
+      <dt>サーバーレス</dt>
+      <dd>常に動いているサーバーを持たず、アクセスが来たときだけプログラムを起動する仕組み。しばらく使われないと眠るので、その直後のアクセスだけ少し遅くなることがあります。</dd>
+      <dt>CDN</dt>
+      <dd>世界各地にあるコピー置き場。画面のファイルや画像のように中身が変わらないものを、利用者の近くから配ります。</dd>
+    </dl>
+  </section>
+
+  <!-- Level 4 -->
+  <section id="lv4">
+    <p class="eyebrow"><span class="pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>レベル 4</p>
+    <h2>タグをかざしてから、経路が出るまで</h2>
+    <p>利用者が7階の W705 の前にあるタグ（地点ID <code>F7-3</code>）にスマホをかざし、W701 への道を調べる場面です。</p>
+
+    <figure class="fig">
+      <svg class="mx-520" viewBox="0 0 460 410" role="img" aria-label="スマホがタグを読み、Cloudflare の住所録で場所を聞き、Vercel の画面置き場から画面を受け取り、Vercel の経路計算に経路を問い合わせて、地図に描くまでの流れ。">
+        <defs>
+          <marker id="m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <text x="192" y="14" class="t-xs t-cf t-b">Cloudflare</text>
+        <path d="M146 24 V20 H238 V24" class="br-cf"/>
+        <text x="351" y="14" class="t-xs t-vc t-b">Vercel</text>
+        <path d="M252 24 V20 H450 V24" class="br-vc"/>
+
+        <rect x="38" y="28" width="96" height="44" rx="7" class="box"/>
+        <text x="86" y="47" class="t-b">スマホ</text>
+        <text x="86" y="64" class="t-xs t-mut">利用者</text>
+        <rect x="144" y="28" width="96" height="44" rx="7" class="box-cf"/>
+        <text x="192" y="47" class="t-b">住所録</text>
+        <text x="192" y="64" class="t-xs t-cf">DNS</text>
+        <rect x="250" y="28" width="96" height="44" rx="7" class="box-vc"/>
+        <text x="298" y="47" class="t-b">画面置き場</text>
+        <text x="298" y="64" class="t-xs t-vc">CDN</text>
+        <rect x="356" y="28" width="96" height="44" rx="7" class="box-vc"/>
+        <text x="404" y="47" class="t-b">経路計算</text>
+        <text x="404" y="64" class="t-xs t-vc">FastAPI</text>
+
+        <line x1="86" y1="72" x2="86" y2="400" class="life"/>
+        <line x1="192" y1="72" x2="192" y2="400" class="life"/>
+        <line x1="298" y1="72" x2="298" y2="400" class="life"/>
+        <line x1="404" y1="72" x2="404" y2="400" class="life"/>
+
+        <text x="404" y="100" class="t-xs t-mut lbl">眠っている</text>
+
+        <!-- 1 -->
+        <circle cx="16" cy="103" r="9" class="num"/>
+        <text x="16" y="107" class="t-num">1</text>
+        <rect x="34" y="90" width="104" height="26" rx="6" class="box-soft"/>
+        <text x="86" y="107.5" class="t-sm">タグをかざす</text>
+
+        <!-- 2 -->
+        <circle cx="16" cy="148" r="9" class="num"/>
+        <text x="16" y="152" class="t-num">2</text>
+        <line x1="86" y1="148" x2="190" y2="148" class="ln" marker-end="url(#m3)"/>
+        <text x="139" y="141" class="t-sm lbl">どこにある？</text>
+        <line x1="192" y1="174" x2="88" y2="174" class="ln dash" marker-end="url(#m3)"/>
+        <text x="139" y="167" class="t-sm lbl">Vercelです</text>
+
+        <!-- 3 -->
+        <circle cx="16" cy="214" r="9" class="num"/>
+        <text x="16" y="218" class="t-num">3</text>
+        <line x1="86" y1="214" x2="296" y2="214" class="ln" marker-end="url(#m3)"/>
+        <text x="192" y="207" class="t-sm lbl">画面をください</text>
+        <line x1="298" y1="240" x2="88" y2="240" class="ln dash" marker-end="url(#m3)"/>
+        <text x="192" y="233" class="t-sm lbl">HTML・地図・写真</text>
+
+        <!-- 4 -->
+        <circle cx="16" cy="284" r="9" class="num"/>
+        <text x="16" y="288" class="t-num">4</text>
+        <line x1="86" y1="284" x2="396" y2="284" class="ln" marker-end="url(#m3)"/>
+        <text x="240" y="277" class="t-sm lbl">F7-3 → W701 の経路は？</text>
+        <rect x="398" y="284" width="12" height="48" rx="2" class="act"/>
+        <text x="390" y="312" class="t-xs end lbl">起動して計算</text>
+        <line x1="398" y1="332" x2="88" y2="332" class="ln dash" marker-end="url(#m3)"/>
+        <text x="240" y="325" class="t-sm lbl">経路データ</text>
+        <text x="404" y="354" class="t-xs t-mut lbl">また眠る</text>
+
+        <!-- 5 -->
+        <circle cx="16" cy="378" r="9" class="num"/>
+        <text x="16" y="382" class="t-num">5</text>
+        <rect x="31" y="365" width="110" height="26" rx="6" class="box-soft"/>
+        <text x="86" y="382.5" class="t-sm">地図に経路を描く</text>
+      </svg>
+      <figcaption>上から下へ時間が進みます。実線は問い合わせ、点線はその返事です。</figcaption>
+    </figure>
+
+    <ol class="steps">
+      <li><div class="body">タグには <code>https://nav.example.com/?loc=F7-3</code> のような URL が書いてあります。かざすとブラウザが開きます。</div></li>
+      <li><div class="body">スマホが住所録（Cloudflare）に「nav.example.com はどこ？」と聞き、Vercel の場所を教わります。</div></li>
+      <li><div class="body">Vercel の画面置き場から、画面と地図画像・写真を受け取ります。いまの <code>frontend</code> フォルダの中身です。</div></li>
+      <li><div class="body">画面が経路計算（FastAPI）に問い合わせます。FastAPI は呼ばれたときだけ起動し、経路を計算して返したら、また眠ります。</div></li>
+      <li><div class="body">地図に赤い矢印で経路が描かれます。</div></li>
+    </ol>
+    <p>Cloudflare が出てくるのは2番の一瞬だけです。それ以外はすべて Vercel が担当します。</p>
+  </section>
+
+  <!-- Level 5 -->
+  <section id="lv5">
+    <p class="eyebrow"><span class="pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>レベル 5　いちばん具体</p>
+    <h2>チームがやる作業と費用</h2>
+
+    <div class="note">
+      <p><strong>先にやること:</strong> エンジニアが、コードを公開向けに少し直します（画面のファイルを <code>public</code> フォルダに移す、など）。技術的な作業なので、ここでは説明を省きます。</p>
+    </div>
+
+    <h3>最初の1回だけ</h3>
+    <ol class="steps">
+      <li><div class="body"><span class="chip chip-cf">Cloudflare</span>アカウントを作り、ドメインを買います（例: <code>example.com</code>）。</div></li>
+      <li><div class="body"><span class="chip chip-vc">Vercel</span>GitHub アカウントでログインし、「Add New → Project」から <code>metaplus797-hub/Directions</code> を選びます。リポジトリの持ち主（metaplus797-hub）が Vercel との連携を許可する必要があります。</div></li>
+      <li><div class="body"><span class="chip chip-vc">Vercel</span>Root Directory に <code>fastapi-project</code> を指定して Deploy を押します。<code>xxx.vercel.app</code> という仮の住所で公開されます。</div></li>
+      <li><div class="body"><span class="chip chip-vc">Vercel</span>Settings → Domains に <code>nav.example.com</code> を追加します。住所録に書く値が表示されます。</div></li>
+      <li><div class="body"><span class="chip chip-cf">Cloudflare</span>DNS に、4番で表示された値を1行追加します。雲のマークはグレー（DNS only）にします。</div></li>
+      <li><div class="body"><span class="chip chip-done">完了</span>数分後に <code>https://nav.example.com</code> で開けるようになります。</div></li>
+    </ol>
+
+    <h3>公開したあとの更新</h3>
+    <figure class="fig">
+      <svg class="mx-560" viewBox="0 0 480 176" role="img" aria-label="コードを直して GitHub に送ると Vercel が自動で公開する。本番用ブランチなら本番の住所に、作業用ブランチなら確認用URLに出る。">
+        <defs>
+          <marker id="m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <rect x="8" y="60" width="96" height="56" rx="8" class="box"/>
+        <text x="56" y="84" class="t-b">コードを直す</text>
+        <text x="56" y="103" class="t-xs t-mono t-mut">git push</text>
+
+        <line x1="104" y1="88" x2="174" y2="88" class="ln" marker-end="url(#m4)"/>
+        <text x="139" y="80" class="t-xs lbl">GitHub経由</text>
+
+        <rect x="180" y="60" width="110" height="56" rx="8" class="box-vc"/>
+        <text x="235" y="84" class="t-b">Vercel</text>
+        <text x="235" y="103" class="t-xs t-vc">自動で公開</text>
+
+        <rect x="356" y="10" width="116" height="56" rx="8" class="box"/>
+        <text x="414" y="34" class="t-b">本番</text>
+        <text x="414" y="53" class="t-xs t-mono t-mut">nav.example.com</text>
+
+        <rect x="356" y="110" width="116" height="56" rx="8" class="box"/>
+        <text x="414" y="134" class="t-b">確認用URL</text>
+        <text x="414" y="153" class="t-xs t-mut">本番はそのまま</text>
+
+        <line x1="290" y1="76" x2="350" y2="42" class="ln" marker-end="url(#m4)"/>
+        <text x="310" y="34" class="t-xs lbl">本番用ブランチ</text>
+        <line x1="290" y1="100" x2="350" y2="134" class="ln" marker-end="url(#m4)"/>
+        <text x="310" y="153" class="t-xs lbl">作業用ブランチ</text>
+      </svg>
+      <figcaption>コードを直して GitHub に送る（push する）と、Vercel が数分以内に自動で公開し直します。本番用のブランチ（main）なら本番に、作業用のブランチなら確認用URLに出るので、本番を壊さずに試せます。</figcaption>
+    </figure>
+    <ul>
+      <li>Cloudflare はほとんど触りません。年1回のドメイン更新くらいで、自動更新にもできます。</li>
+    </ul>
+
+    <h3>費用</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>サービス</th><th>何に払うか</th><th>目安</th></tr></thead>
+        <tbody>
+          <tr><td><span class="chip chip-cf">Cloudflare</span></td><td>ドメイン代</td><td class="num">年 $10 前後（約1,500円）</td></tr>
+          <tr><td><span class="chip chip-vc">Vercel</span></td><td>非商用: Hobby プラン</td><td class="num">無料</td></tr>
+          <tr><td><span class="chip chip-vc">Vercel</span></td><td>商用: Pro プラン</td><td class="num">管理者1人につき月 $20（約3,000円）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">Vercel の無料プランは個人・非商用に限られます。会社の業務として運用するなら Pro プランです。1日1,000回程度の利用なら、どちらのプランでも追加料金は出ない見込みです。金額は1ドル=150円で概算しています。</p>
+  </section>
+
+  <footer>
+    <p>出典（2026年10月時点）</p>
+    <ul>
+      <li><a target="_blank" rel="noopener" href="https://vercel.com/pricing">Vercel Pricing</a></li>
+      <li><a target="_blank" rel="noopener" href="https://vercel.com/docs/frameworks/backend/fastapi">Deploy a FastAPI app on Vercel</a></li>
+      <li><a target="_blank" rel="noopener" href="https://www.cloudflare.com/plans/">Cloudflare Plans</a></li>
+    </ul>
+  </footer>
+</div>
+</body>
+</html>
