@@ -9,12 +9,16 @@ Kotlin版 MainActivity.kt の以下のUIロジックをAPIエンドポイント�
 """
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+import json
+from pathlib import Path
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from data import graph_service
 from schemas import (
+    CsvNodeRecord,
     DestinationOut,
     FloorGraphResponse,
     Node,
@@ -25,6 +29,24 @@ from schemas import (
 from pathfinder import dijkstra
 
 app = FastAPI(title="NFC Indoor Navigation API", version="1.0.0")
+
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+IMAGE_DIR = FRONTEND_DIR / "static" / "images"
+FLOOR_META_PATH = Path(__file__).resolve().parent / "data" / "floor_map_meta.json"
+
+
+def _read_floor_meta() -> dict:
+    if not FLOOR_META_PATH.exists():
+        return {}
+    try:
+        return json.loads(FLOOR_META_PATH.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+
+def _write_floor_meta(data: dict) -> None:
+    FLOOR_META_PATH.parent.mkdir(parents=True, exist_ok=True)
+    FLOOR_META_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 # フロントエンド(HTML/CSS/JS)を別オリジンから開発する場合に備えてCORSを許可
 app.add_middleware(
@@ -98,6 +120,75 @@ def get_node(node_id: str):
     return _node_to_out(node)
 
 
+@app.get("/api/editor/nodes", response_model=list[CsvNodeRecord])
+def get_editor_nodes():
+    """CSV編集画面用にノード一覧を取得する"""
+    return [CsvNodeRecord(**row) for row in graph_service.get_csv_rows()]
+
+
+@app.post("/api/editor/nodes")
+def save_editor_nodes(rows: list[CsvNodeRecord]):
+    """CSV編集画面で編集したノード一覧をファイルへ保存する"""
+    graph_service.save_csv_rows([row.model_dump() for row in rows])
+    graph_service.load()
+    return {"success": True, "count": len(rows), "path": str(graph_service.csv_path)}
+
+
+@app.get("/api/floors/{floor}/meta")
+def get_floor_meta(floor: str):
+    """フロアに紐づく画像名と表示名を取得する"""
+    meta = _read_floor_meta().get(floor, {})
+    return {
+        "floor": floor,
+        "label": meta.get("label") or floor,
+        "map_image": meta.get("map_image") or f"map_{floor.lower()}.png",
+    }
+
+
+@app.post("/api/floors/{floor}/meta")
+def save_floor_meta(floor: str, payload: dict):
+    """フロアの画像メタ情報を保存する"""
+    meta = _read_floor_meta()
+    current = meta.get(floor, {})
+    current.update(payload)
+    meta[floor] = current
+    _write_floor_meta(meta)
+    return {"floor": floor, "meta": current}
+
+
+@app.post("/api/floors/{floor}/map-image")
+async def upload_map_image(
+    floor: str,
+    file: UploadFile = File(...),
+    label: str = Form(""),
+):
+    """フロア用の背景画像をアップロードして保存する"""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="ファイル名がありません")
+
+    suffix = Path(file.filename).suffix.lower() or ".png"
+    target_name = f"map_{floor.lower()}{suffix}"
+    target_path = IMAGE_DIR / target_name
+    IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+    content = await file.read()
+    target_path.write_bytes(content)
+
+    meta = _read_floor_meta()
+    meta[floor] = {
+        "label": label or floor,
+        "map_image": target_name,
+    }
+    _write_floor_meta(meta)
+
+    return {
+        "floor": floor,
+        "label": label or floor,
+        "map_image": target_name,
+        "path": str(target_path),
+    }
+
+
 @app.post("/api/route", response_model=RouteResponse)
 def get_route(req: RouteRequest):
     """現在地から目的地までの最短経路を計算する（updateRoute 相当）"""
@@ -138,12 +229,9 @@ def get_route(req: RouteRequest):
 # フロントエンド(HTML/CSS/JS/画像)の静的配信
 # 開発時はこのFastAPIサーバー1つで frontend/ 一式も配信できるようにする。
 # 本番では nginx 等で frontend を別配信し、API_BASE を切り替えても良い。
-import pathlib
-
 # main.py が fastapi-project/ 直下にある想定:
 #   guide_group/
 #   ├── fastapi-project/main.py  <- このファイル
 #   └── frontend/                <- ここを参照
-_frontend_dir = pathlib.Path(__file__).resolve().parent.parent / "frontend"
-if _frontend_dir.exists():
-    app.mount("/", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
+if FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

@@ -47,6 +47,9 @@ class GraphService:
                     if len(tokens) < 7:
                         continue
 
+                    if not any(token.strip() for token in tokens):
+                        continue
+
                     floor = tokens[6].strip()
                     if floor in EXCLUDED_FLOORS:
                         continue
@@ -96,6 +99,63 @@ class GraphService:
         )
 
     # --- クエリ用メソッド ---
+
+    def get_csv_rows(self) -> List[dict]:
+        """CSVの生データを辞書形式で返す（編集画面用）"""
+        rows: List[dict] = []
+        with self.csv_path.open("r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row is None:
+                    continue
+                if not any((value or "").strip() for value in row.values()):
+                    continue
+                rows.append(
+                    {
+                        "id": (row.get("id") or "").strip(),
+                        "name": (row.get("name") or "").strip(),
+                        "x": (row.get("x") or "").strip(),
+                        "y": (row.get("y") or "").strip(),
+                        "adjacent_point": (row.get("adjacent_point") or "").strip(),
+                        "is_destination": (row.get("is_destination") or "").strip(),
+                        "Floor": (row.get("Floor") or "").strip(),
+                        "imageName": (row.get("imageName") or "").strip(),
+                    }
+                )
+        return rows
+
+    def save_csv_rows(self, rows: List[dict]) -> None:
+        """編集済みのCSVデータをファイルへ保存する"""
+        fieldnames = [
+            "id",
+            "name",
+            "x",
+            "y",
+            "adjacent_point",
+            "is_destination",
+            "Floor",
+            "imageName",
+        ]
+
+        with self.csv_path.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for item in rows:
+                if item is None:
+                    continue
+                if hasattr(item, "model_dump"):
+                    item = item.model_dump()
+                row = {
+                    "id": str((item.get("id") or "")).strip(),
+                    "name": str((item.get("name") or "")).strip(),
+                    "x": str((item.get("x") or "")).strip(),
+                    "y": str((item.get("y") or "")).strip(),
+                    "adjacent_point": str((item.get("adjacent_point") or "")).strip(),
+                    "is_destination": str((item.get("is_destination") or "")).strip(),
+                    "Floor": str((item.get("Floor") or "")).strip(),
+                    "imageName": str((item.get("imageName") or "")).strip(),
+                }
+                writer.writerow(row)
 
     def get_floors(self) -> List[str]:
         """存在するフロア名の一覧（ソート済み）"""
