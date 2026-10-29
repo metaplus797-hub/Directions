@@ -97,6 +97,11 @@ async function init() {
   await setupWebNfc();
 
   await onFloorChanged();
+
+  // NFCタグに書いたURL（例: https://nav.example.com/?loc=F7-3）から開かれた場合は、
+  // その地点を現在地にする。URLを書いたタグなら iPhone でもかざすだけで開ける。
+  const initialLoc = new URLSearchParams(window.location.search).get("loc");
+  if (initialLoc) await onNfcRead(initialLoc);
 }
 
 async function onFloorChanged() {
@@ -465,8 +470,8 @@ function getMapImage(fileName) {
 // NFC関連 (Kotlin版 onResume/onNewIntent/handleIntent 相当)
 // =========================================================
 
-// 実機のNFCタグに "nfctest://<nodeId>" のようなURLを書き込んでおくと、
-// Web NFC API (Android Chrome, HTTPS必須) 経由で読み取れる。
+// 実機のNFCタグに "https://<ドメイン>/?loc=<nodeId>" や "nfctest://<nodeId>" のようなURLを
+// 書き込んでおくと、ページを開いている間は Web NFC API (Android Chrome, HTTPS必須) 経由で読み取れる。
 async function setupWebNfc() {
   if (!("NDEFReader" in window)) {
     console.info("Web NFC はこのブラウザでは利用できません（NFCシミュレーターを使用してください）");
@@ -494,7 +499,8 @@ async function onNfcRead(raw) {
   let nodeId = raw;
   try {
     const url = new URL(raw);
-    nodeId = url.host || url.pathname.replace(/^\//, "");
+    // https://<ドメイン>/?loc=F7-3 形式なら loc を、nfctest://F7-3 形式ならホスト部分を使う
+    nodeId = url.searchParams.get("loc") || url.host || url.pathname.replace(/^\//, "");
   } catch {
     // URL形式でなければ raw をそのままノードIDとして扱う
   }

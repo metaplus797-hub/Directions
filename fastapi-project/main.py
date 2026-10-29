@@ -10,10 +10,10 @@ Kotlin版 MainActivity.kt の以下のUIロジックをAPIエンドポイント�
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
 
 from data import graph_service
@@ -30,7 +30,9 @@ from pathfinder import dijkstra
 
 app = FastAPI(title="NFC Indoor Navigation API", version="1.0.0")
 
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+# Vercel では Root Directory (fastapi-project/) の外のファイルは配置されないため、
+# 画面一式も fastapi-project/ の中に置く
+FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"
 IMAGE_DIR = FRONTEND_DIR / "static" / "images"
 FLOOR_META_PATH = Path(__file__).resolve().parent / "data" / "floor_map_meta.json"
 
@@ -48,13 +50,27 @@ def _write_floor_meta(data: dict) -> None:
     FLOOR_META_PATH.parent.mkdir(parents=True, exist_ok=True)
     FLOOR_META_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
-# フロントエンド(HTML/CSS/JS)を別オリジンから開発する場合に備えてCORSを許可
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # 本番運用時はフロントのオリジンに限定してください
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORSMiddleware は外した。画面とAPIを同じオリジンから配信するので不要で、
+# アプリ全体にミドルウェアがあると Vercel が静的ファイルをCDNに載せなくなるため。
+
+
+def is_read_only() -> bool:
+    """公開環境なら True。編集APIを止めるのに使う
+
+    Vercel は実行時に VERCEL=1 を設定する。トンネル経由の公開テストなど
+    それ以外の公開環境では DIRECTIONS_READ_ONLY=1 を指定して起動する。
+    """
+    return os.getenv("VERCEL") == "1" or os.getenv("DIRECTIONS_READ_ONLY") == "1"
+
+
+def require_writable() -> None:
+    """公開環境ではファイルを書き換えるAPIを 403 で拒否する
+
+    編集APIにはログインがなく、公開すると誰でもデータを書き換えられてしまう。
+    また Vercel の実行環境ではファイルを保存できない。
+    """
+    if is_read_only():
+        raise HTTPException(status_code=403, detail="公開環境ではデータを編集できません")
 
 
 def _node_to_out(node: Node) -> NodeOut:
@@ -126,7 +142,7 @@ def get_editor_nodes():
     return [CsvNodeRecord(**row) for row in graph_service.get_csv_rows()]
 
 
-@app.post("/api/editor/nodes")
+@app.post("/api/editor/nodes", dependencies=[Depends(require_writable)])
 def save_editor_nodes(rows: list[CsvNodeRecord]):
     """CSV編集画面で編集したノード一覧をファイルへ保存する"""
     graph_service.save_csv_rows([row.model_dump() for row in rows])
@@ -145,7 +161,7 @@ def get_floor_meta(floor: str):
     }
 
 
-@app.post("/api/floors/{floor}/meta")
+@app.post("/api/floors/{floor}/meta", dependencies=[Depends(require_writable)])
 def save_floor_meta(floor: str, payload: dict):
     """フロアの画像メタ情報を保存する"""
     meta = _read_floor_meta()
@@ -156,7 +172,7 @@ def save_floor_meta(floor: str, payload: dict):
     return {"floor": floor, "meta": current}
 
 
-@app.post("/api/floors/{floor}/map-image")
+@app.post("/api/floors/{floor}/map-image", dependencies=[Depends(require_writable)])
 async def upload_map_image(
     floor: str,
     file: UploadFile = File(...),
@@ -227,11 +243,11 @@ def get_route(req: RouteRequest):
 
 
 # フロントエンド(HTML/CSS/JS/画像)の静的配信
-# 開発時はこのFastAPIサーバー1つで frontend/ 一式も配信できるようにする。
-# 本番では nginx 等で frontend を別配信し、API_BASE を切り替えても良い。
-# main.py が fastapi-project/ 直下にある想定:
-#   guide_group/
-#   ├── fastapi-project/main.py  <- このファイル
-#   └── frontend/                <- ここを参照
+# ローカルでも Vercel でも同じコードで動く。Vercel はビルド時にこのマウントを検出し、
+# frontend/ のファイルをCDNから配信する（/api/* はこれより前に定義しているので優先される）。
+# 配置:
+#   fastapi-project/
+#   ├── main.py      <- このファイル
+#   └── frontend/    <- ここを参照
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
