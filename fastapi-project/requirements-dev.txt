@@ -1,0 +1,6 @@
+-r requirements.txt
+pytest>=8.0
+# Test client for FastAPI: newer Starlette uses httpx2, older Starlette uses httpx.
+# (Keep this file ASCII-only: pip on Japanese Windows reads it as cp932.)
+httpx2>=2.16.0
+httpx>=0.27.0
