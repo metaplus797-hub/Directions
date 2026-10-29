@@ -38,15 +38,15 @@ class NodeOut(BaseModel):
     label: str = ""  # 目的地のみ表示名、それ以外は空文字（Kotlin版 nodeLabels 相当）
 
 
-class CsvNodeRecord(BaseModel):
-    """CSV編集画面から保存・読込するノード行の形式"""
+class EditorNodeRecord(BaseModel):
+    """ノード編集画面のAPIで使用する行形式"""
 
     id: str = ""
     name: str = ""
-    x: str = ""
-    y: str = ""
+    x: float = 0
+    y: float = 0
     adjacent_point: str = ""
-    is_destination: str = "FALSE"
+    is_destination: bool = False
     Floor: str = ""
     imageName: str = ""
 

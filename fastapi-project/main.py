@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from data import graph_service
 from schemas import (
-    CsvNodeRecord,
+    EditorNodeRecord,
     DestinationOut,
     FloorGraphResponse,
     Node,
@@ -120,18 +120,18 @@ def get_node(node_id: str):
     return _node_to_out(node)
 
 
-@app.get("/api/editor/nodes", response_model=list[CsvNodeRecord])
+@app.get("/api/editor/nodes", response_model=list[EditorNodeRecord])
 def get_editor_nodes():
-    """CSV編集画面用にノード一覧を取得する"""
-    return [CsvNodeRecord(**row) for row in graph_service.get_csv_rows()]
+    """ノード編集画面用にノード一覧を取得する"""
+    return [EditorNodeRecord(**row) for row in graph_service.get_editor_rows()]
 
 
 @app.post("/api/editor/nodes")
-def save_editor_nodes(rows: list[CsvNodeRecord]):
-    """CSV編集画面で編集したノード一覧をファイルへ保存する"""
-    graph_service.save_csv_rows([row.model_dump() for row in rows])
+def save_editor_nodes(rows: list[EditorNodeRecord]):
+    """編集画面で編集したノード一覧をJSONファイルへ保存する"""
+    graph_service.save_editor_rows([row.model_dump() for row in rows])
     graph_service.load()
-    return {"success": True, "count": len(rows), "path": str(graph_service.csv_path)}
+    return {"success": True, "count": len(rows), "path": str(graph_service.json_path)}
 
 
 @app.get("/api/floors/{floor}/meta")

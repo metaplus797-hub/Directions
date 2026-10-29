@@ -132,10 +132,10 @@ async function saveNodes() {
         ...row,
         id: String(row.id ?? "").trim(),
         name: String(row.name ?? "").trim(),
-        x: String(row.x ?? "").trim(),
-        y: String(row.y ?? "").trim(),
+        x: Number(row.x || 0),
+        y: Number(row.y || 0),
         adjacent_point: String(row.adjacent_point ?? "").trim(),
-        is_destination: String(row.is_destination ?? "FALSE").trim().toUpperCase(),
+        is_destination: String(row.is_destination ?? "FALSE").trim().toUpperCase() === "TRUE",
         Floor: String(row.Floor ?? "").trim(),
         imageName: String(row.imageName ?? "").trim(),
       }));

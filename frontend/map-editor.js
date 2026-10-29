@@ -2,6 +2,7 @@ const state = {
   rows: [],
   floor: "F6",
   selectedNodeId: null,
+  editingNodeId: null,
   draggingNodeId: null,
   mapImage: null,
   mapImageName: "",
@@ -168,42 +169,51 @@ function renderNodeInfo() {
   const node = getNodeById(state.selectedNodeId);
   if (!node) {
     nodeInfoEl.innerHTML = "<p class=\"empty-text\">ノードを選択してください</p>";
+    document.getElementById("floorSelect").disabled = false;
+    document.getElementById("addNodeBtn").disabled = false;
     return;
   }
 
+  const isEditing = state.editingNodeId === node.id;
+  const disabled = isEditing ? "" : "disabled";
   nodeInfoEl.innerHTML = `
     <div class="node-field">
       <label>ID</label>
-      <input id="nodeIdInput" value="${escapeHtml(node.id)}" />
+      <input id="nodeIdInput" value="${escapeHtml(node.id)}" ${disabled} />
     </div>
     <div class="node-field">
       <label>名前</label>
-      <input id="nodeNameInput" value="${escapeHtml(node.name)}" />
+      <input id="nodeNameInput" value="${escapeHtml(node.name)}" ${disabled} />
     </div>
     <div class="node-field">
       <label>X</label>
-      <input id="nodeXInput" type="number" step="0.1" value="${Number(node.x).toFixed(2)}" />
+      <input id="nodeXInput" type="number" step="0.1" value="${Number(node.x).toFixed(2)}" ${disabled} />
     </div>
     <div class="node-field">
       <label>Y</label>
-      <input id="nodeYInput" type="number" step="0.1" value="${Number(node.y).toFixed(2)}" />
+      <input id="nodeYInput" type="number" step="0.1" value="${Number(node.y).toFixed(2)}" ${disabled} />
     </div>
     <div class="node-field">
       <label>隣接ノード</label>
-      <input id="nodeAdjacentInput" value="${escapeHtml(node.adjacent_point || "")}" />
+      <input id="nodeAdjacentInput" value="${escapeHtml(node.adjacent_point || "")}" ${disabled} />
     </div>
     <div class="node-field checkbox-row">
       <label>目的地</label>
-      <input id="nodeDestinationInput" type="checkbox" ${node.is_destination ? "checked" : ""} />
+      <input id="nodeDestinationInput" type="checkbox" ${node.is_destination ? "checked" : ""} ${disabled} />
     </div>
     <div class="node-field">
       <label>画像名</label>
-      <input id="nodeImageInput" value="${escapeHtml(node.imageName || "")}" />
+      <input id="nodeImageInput" value="${escapeHtml(node.imageName || "")}" ${disabled} />
     </div>
+    ${isEditing ? '<div class="editor-actions"><button id="completeNodeEditBtn" type="button" class="primary-btn">編集完了</button></div>' : ""}
   `;
+  document.getElementById("floorSelect").disabled = isEditing;
+  document.getElementById("addNodeBtn").disabled = isEditing;
 
   document.getElementById("nodeIdInput").addEventListener("input", (e) => {
     node.id = e.target.value;
+    state.selectedNodeId = node.id;
+    state.editingNodeId = node.id;
   });
   document.getElementById("nodeNameInput").addEventListener("input", (e) => {
     node.name = e.target.value;
@@ -225,6 +235,13 @@ function renderNodeInfo() {
   document.getElementById("nodeImageInput").addEventListener("input", (e) => {
     node.imageName = e.target.value;
   });
+  if (isEditing) {
+    document.getElementById("completeNodeEditBtn").addEventListener("click", () => {
+      state.editingNodeId = null;
+      renderNodeInfo();
+      statusEl.textContent = `ノード「${node.name}」の編集を完了しました`;
+    });
+  }
 }
 
 function escapeHtml(text) {
@@ -271,8 +288,13 @@ function normalizeAdjacentNodes() {
 async function loadRows() {
   const rows = await api("/api/editor/nodes");
   state.rows = parseRows(rows);
+  if (state.selectedNodeId && !getNodeById(state.selectedNodeId)) {
+    state.selectedNodeId = null;
+    state.editingNodeId = null;
+  }
   renderFloorOptions();
   await loadFloorMeta();
+  renderNodeInfo();
   drawBackground();
 }
 
@@ -320,10 +342,10 @@ async function saveNodes() {
     .map((row) => ({
       id: String(row.id).trim(),
       name: String(row.name).trim(),
-      x: String(Number(row.x || 0)),
-      y: String(Number(row.y || 0)),
+      x: Number(row.x || 0),
+      y: Number(row.y || 0),
       adjacent_point: String(row.adjacent_point || "").trim(),
-      is_destination: row.is_destination ? "TRUE" : "FALSE",
+      is_destination: Boolean(row.is_destination),
       Floor: String(row.Floor || state.floor).trim(),
       imageName: String(row.imageName || "").trim(),
     }));
@@ -354,6 +376,7 @@ function addNode() {
   };
   state.rows.push(row);
   state.selectedNodeId = row.id;
+  state.editingNodeId = row.id;
   renderFloorOptions();
   renderNodeInfo();
   drawBackground();
@@ -366,8 +389,13 @@ function attachCanvasEvents() {
     const y = event.clientY - rect.top;
     const { node } = findClosestNode(x, y);
     if (!node) return;
+    if (state.editingNodeId && state.editingNodeId !== node.id) {
+      statusEl.textContent = "編集中です。別のノードを選ぶには「編集完了」を押してください";
+      return;
+    }
 
     state.selectedNodeId = node.id;
+    state.editingNodeId = node.id;
     state.draggingNodeId = node.id;
     const point = toScreen(Number(node.x), Number(node.y));
     state.dragOffset = { x: x - point.x, y: y - point.y };
