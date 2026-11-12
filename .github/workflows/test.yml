@@ -1,0 +1,20 @@
+# push と Pull Request のたびに fastapi-project のテストを実行する
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fastapi-project
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12" # Vercel の既定の Python に合わせる
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -rxX
