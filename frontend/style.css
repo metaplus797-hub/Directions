@@ -236,6 +236,10 @@ select, button {
   padding: 12px;
 }
 
+.map-canvas-stage {
+  position: relative;
+}
+
 #mapCanvas {
   width: 100%;
   height: 700px;
@@ -244,6 +248,116 @@ select, button {
   border-radius: 10px;
   display: block;
   cursor: crosshair;
+}
+
+#edgeCanvas {
+  position: absolute;
+  z-index: 1;
+  inset: 1px;
+  width: calc(100% - 2px);
+  height: calc(100% - 2px);
+  pointer-events: none;
+}
+
+#nodeLayer {
+  position: absolute;
+  z-index: 2;
+  inset: 1px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.map-node-button {
+  position: absolute;
+  z-index: 1;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.map-node-button:active {
+  cursor: grabbing;
+}
+
+.map-node-button:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 1px;
+}
+
+.map-node-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.6);
+  transform: translate(-50%, -50%);
+}
+
+.map-node-dot.destination {
+  background: #2563eb;
+}
+
+.map-node-button.selected {
+  z-index: 2;
+}
+
+.map-node-button.selected .map-node-dot {
+  width: 20px;
+  height: 20px;
+  background: #ef4444;
+}
+
+.map-node-label {
+  position: absolute;
+  left: calc(50% + 13px);
+  top: 50%;
+  color: #111827;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px #fff, 1px 0 2px #fff, 0 -1px 2px #fff, -1px 0 2px #fff;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.map-node-button.selected .map-node-label {
+  font-weight: 700;
+}
+
+.map-empty-message {
+  position: absolute;
+  inset: 50% 0 auto;
+  margin: 0;
+  color: #64748b;
+  text-align: center;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+#nodeEditActions[hidden] {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .map-editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #mapCanvas {
+    height: min(700px, 70vh);
+    min-height: 400px;
+  }
 }
 
 .property-panel {

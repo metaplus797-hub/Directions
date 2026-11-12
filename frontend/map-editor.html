@@ -43,7 +43,11 @@
 
     <div class="map-editor-layout">
       <div class="canvas-panel panel">
-        <canvas id="mapCanvas" width="900" height="700"></canvas>
+        <div class="map-canvas-stage">
+          <canvas id="mapCanvas" width="900" height="700" aria-hidden="true"></canvas>
+          <canvas id="edgeCanvas" width="900" height="700" aria-hidden="true"></canvas>
+          <div id="nodeLayer" aria-label="マップ上のノード"></div>
+        </div>
       </div>
       <aside class="property-panel panel">
         <h2>ノード情報</h2>

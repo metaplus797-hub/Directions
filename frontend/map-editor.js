@@ -4,23 +4,28 @@ const state = {
   selectedNodeId: null,
   editingNodeId: null,
   draggingNodeId: null,
+  draggingButton: null,
+  didMoveNode: false,
   mapImage: null,
   mapImageName: "",
+  backgroundImage: null,
+  backgroundLayer: null,
+  backgroundLayerKey: "",
+  transform: null,
   dragOffset: { x: 0, y: 0 },
 };
 
 const canvas = document.getElementById("mapCanvas");
 const ctx = canvas.getContext("2d");
+const edgeCanvas = document.getElementById("edgeCanvas");
+const edgeContext = edgeCanvas.getContext("2d");
+const nodeLayer = document.getElementById("nodeLayer");
 
 const floorSelect = document.getElementById("floorSelect");
 const floorLabelInput = document.getElementById("floorLabelInput");
 const mapImageUpload = document.getElementById("mapImageUpload");
 const statusEl = document.getElementById("status");
 const nodeInfoEl = document.getElementById("nodeInfo");
-
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
 
 async function api(path, options = {}) {
   const res = await fetch(path, {
@@ -63,9 +68,12 @@ function renderFloorOptions() {
 }
 
 function computeTransform() {
+  if (state.transform) return state.transform;
+
   const rows = getFloorRows();
   if (!rows.length) {
-    return { scale: 1, offsetX: 40, offsetY: 40 };
+    state.transform = { scale: 1, offsetX: 40, offsetY: 40 };
+    return state.transform;
   }
 
   const xs = rows.map((n) => n.x);
@@ -77,11 +85,12 @@ function computeTransform() {
   const width = canvas.width;
   const height = canvas.height;
   const scale = Math.min((width - 80) / logicalW, (height - 80) / logicalH) * 0.9;
-  return {
+  state.transform = {
     scale,
     offsetX: width / 2 - ((minX + maxX) / 2) * scale,
     offsetY: height / 2 + ((minY + maxY) / 2) * scale,
   };
+  return state.transform;
 }
 
 function toScreen(x, y) {
@@ -99,70 +108,128 @@ function getNodeById(id) {
 }
 
 function drawBackground() {
+  const layer = getBackgroundLayer();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "#edf2f7";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  if (state.mapImage) {
-    const img = new Image();
-    img.onload = () => {
-      const maxWidth = canvas.width * 0.92;
-      const maxHeight = canvas.height * 0.92;
-      const ratio = Math.min(maxWidth / img.width, maxHeight / img.height);
-      const drawWidth = img.width * ratio;
-      const drawHeight = img.height * ratio;
-      const x = (canvas.width - drawWidth) / 2;
-      const y = (canvas.height - drawHeight) / 2;
-      ctx.drawImage(img, x, y, drawWidth, drawHeight);
-      drawNodes();
-    };
-    img.src = `/static/images/${state.mapImage}`;
-    return;
-  }
-
-  drawNodes();
+  ctx.drawImage(layer, 0, 0);
+  drawSelectedNodeEdges();
+  renderNodeLayer();
 }
 
-function drawNodes() {
+function drawSelectedNodeEdges() {
+  edgeContext.clearRect(0, 0, edgeCanvas.width, edgeCanvas.height);
+  const selectedNode = getNodeById(state.selectedNodeId);
+  if (!selectedNode) return;
+
+  const neighborIds = String(selectedNode.adjacent_point || "").split(/\s+/).filter(Boolean);
+  edgeContext.beginPath();
+  edgeContext.strokeStyle = "#f97316";
+  edgeContext.lineWidth = 3;
+  edgeContext.lineCap = "round";
+
+  neighborIds.forEach((value) => {
+    const neighborId = /^\d+$/.test(value) ? `${selectedNode.Floor}-${value}` : value;
+    const neighbor = getNodeById(neighborId);
+    if (!neighbor || String(neighbor.Floor || "").trim() !== state.floor) return;
+
+    const from = toScreen(Number(selectedNode.x), Number(selectedNode.y));
+    const to = toScreen(Number(neighbor.x), Number(neighbor.y));
+    edgeContext.moveTo(from.x, from.y);
+    edgeContext.lineTo(to.x, to.y);
+  });
+
+  edgeContext.stroke();
+}
+
+function getBackgroundLayer() {
+  const key = `${canvas.width}x${canvas.height}:${state.mapImage}`;
+  if (state.backgroundLayer && state.backgroundLayerKey === key) {
+    return state.backgroundLayer;
+  }
+
+  const layer = document.createElement("canvas");
+  layer.width = canvas.width;
+  layer.height = canvas.height;
+  const layerContext = layer.getContext("2d");
+  layerContext.fillStyle = "#edf2f7";
+  layerContext.fillRect(0, 0, layer.width, layer.height);
+
+  if (state.mapImage) {
+    if (state.mapImageName !== state.mapImage) {
+      state.mapImageName = state.mapImage;
+      state.backgroundImage = new Image();
+      state.backgroundImage.onload = () => {
+        if (state.mapImageName === state.mapImage) {
+          state.backgroundLayer = null;
+          drawBackground();
+        }
+      };
+      state.backgroundImage.onerror = () => {
+        if (state.mapImageName === state.mapImage) {
+          statusEl.textContent = `背景画像を読み込めませんでした: ${state.mapImage}`;
+        }
+      };
+      state.backgroundImage.src = `/static/images/${state.mapImage}`;
+    }
+
+    const img = state.backgroundImage;
+    if (img?.complete && img.naturalWidth > 0) {
+      const ratio = Math.min((layer.width * 0.92) / img.width, (layer.height * 0.92) / img.height);
+      const drawWidth = img.width * ratio;
+      const drawHeight = img.height * ratio;
+      layerContext.drawImage(img, (layer.width - drawWidth) / 2, (layer.height - drawHeight) / 2, drawWidth, drawHeight);
+    }
+  }
+
+  state.backgroundLayer = layer;
+  state.backgroundLayerKey = key;
+  return layer;
+}
+
+function renderNodeLayer() {
+  nodeLayer.replaceChildren();
   const rows = getFloorRows();
   if (!rows.length) {
-    drawEmptyMessage();
+    const message = document.createElement("p");
+    message.className = "map-empty-message";
+    message.textContent = "このフロアにはノードがありません";
+    nodeLayer.append(message);
     return;
   }
 
   rows.forEach((row) => {
-    const p = toScreen(Number(row.x), Number(row.y));
-    const isSelected = row.id === state.selectedNodeId;
-    const isDestination = row.is_destination;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "map-node-button";
+    button.dataset.nodeId = row.id;
+    button.setAttribute("aria-label", `${row.id}: ${row.name}`);
+    button.title = `${row.id}: ${row.name}`;
 
-    ctx.beginPath();
-    ctx.fillStyle = isSelected ? "#ef4444" : isDestination ? "#2563eb" : "#10b981";
-    ctx.arc(p.x, p.y, isSelected ? 10 : 7, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#111827";
-    ctx.font = "12px sans-serif";
-    ctx.fillText(row.name || row.id, p.x + 10, p.y - 8);
+    const dot = document.createElement("span");
+    dot.className = `map-node-dot${row.is_destination ? " destination" : ""}`;
+    dot.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.className = "map-node-label";
+    label.textContent = row.name || row.id;
+    button.append(dot, label);
+    positionNodeButton(button, row);
+    button.classList.toggle("selected", row.id === state.selectedNodeId);
+    nodeLayer.append(button);
   });
-
-  if (state.selectedNodeId) {
-    const node = getNodeById(state.selectedNodeId);
-    if (node) {
-      const p = toScreen(Number(node.x), Number(node.y));
-      ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-      ctx.fillRect(p.x + 12, p.y - 36, 180, 28);
-      ctx.fillStyle = "#fff";
-      ctx.font = "12px sans-serif";
-      ctx.fillText(`${node.id} / ${node.name}`, p.x + 18, p.y - 18);
-    }
-  }
 }
 
-function drawEmptyMessage() {
-  ctx.fillStyle = "#64748b";
-  ctx.font = "18px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("このフロアにはノードがありません", canvas.width / 2, canvas.height / 2);
+function positionNodeButton(button, node) {
+  const point = toScreen(Number(node.x), Number(node.y));
+  button.style.left = `${(point.x / canvas.width) * 100}%`;
+  button.style.top = `${(point.y / canvas.height) * 100}%`;
+}
+
+function selectNode(node) {
+  state.selectedNodeId = node.id;
+  nodeLayer.querySelectorAll(".map-node-button").forEach((button) => {
+    button.classList.toggle("selected", button.dataset.nodeId === node.id);
+  });
+  drawSelectedNodeEdges();
+  renderNodeInfo();
 }
 
 function renderNodeInfo() {
@@ -175,73 +242,98 @@ function renderNodeInfo() {
   }
 
   const isEditing = state.editingNodeId === node.id;
-  const disabled = isEditing ? "" : "disabled";
   nodeInfoEl.innerHTML = `
     <div class="node-field">
       <label>ID</label>
-      <input id="nodeIdInput" value="${escapeHtml(node.id)}" ${disabled} />
+      <input id="nodeIdInput" value="${escapeHtml(node.id)}" />
     </div>
     <div class="node-field">
       <label>名前</label>
-      <input id="nodeNameInput" value="${escapeHtml(node.name)}" ${disabled} />
+      <input id="nodeNameInput" value="${escapeHtml(node.name)}" />
     </div>
     <div class="node-field">
       <label>X</label>
-      <input id="nodeXInput" type="number" step="0.1" value="${Number(node.x).toFixed(2)}" ${disabled} />
+      <input id="nodeXInput" type="number" step="0.1" value="${Number(node.x).toFixed(2)}" />
     </div>
     <div class="node-field">
       <label>Y</label>
-      <input id="nodeYInput" type="number" step="0.1" value="${Number(node.y).toFixed(2)}" ${disabled} />
+      <input id="nodeYInput" type="number" step="0.1" value="${Number(node.y).toFixed(2)}" />
     </div>
     <div class="node-field">
       <label>隣接ノード</label>
-      <input id="nodeAdjacentInput" value="${escapeHtml(node.adjacent_point || "")}" ${disabled} />
+      <input id="nodeAdjacentInput" value="${escapeHtml(node.adjacent_point || "")}" />
     </div>
     <div class="node-field checkbox-row">
       <label>目的地</label>
-      <input id="nodeDestinationInput" type="checkbox" ${node.is_destination ? "checked" : ""} ${disabled} />
+      <input id="nodeDestinationInput" type="checkbox" ${node.is_destination ? "checked" : ""} />
     </div>
     <div class="node-field">
       <label>画像名</label>
-      <input id="nodeImageInput" value="${escapeHtml(node.imageName || "")}" ${disabled} />
+      <input id="nodeImageInput" value="${escapeHtml(node.imageName || "")}" />
     </div>
-    ${isEditing ? '<div class="editor-actions"><button id="completeNodeEditBtn" type="button" class="primary-btn">編集完了</button></div>' : ""}
+    <div class="editor-actions" id="nodeEditActions" ${isEditing ? "" : "hidden"}>
+      <button id="completeNodeEditBtn" type="button" class="primary-btn">編集完了</button>
+    </div>
   `;
-  document.getElementById("floorSelect").disabled = isEditing;
-  document.getElementById("addNodeBtn").disabled = isEditing;
+  updateEditControls();
 
   document.getElementById("nodeIdInput").addEventListener("input", (e) => {
+    beginNodeEdit(node);
     node.id = e.target.value;
     state.selectedNodeId = node.id;
     state.editingNodeId = node.id;
+    renderNodeLayer();
   });
   document.getElementById("nodeNameInput").addEventListener("input", (e) => {
+    beginNodeEdit(node);
     node.name = e.target.value;
+    renderNodeLayer();
   });
   document.getElementById("nodeXInput").addEventListener("input", (e) => {
+    beginNodeEdit(node);
     node.x = Number(e.target.value || 0);
-    drawBackground();
+    renderNodeLayer();
+    drawSelectedNodeEdges();
   });
   document.getElementById("nodeYInput").addEventListener("input", (e) => {
+    beginNodeEdit(node);
     node.y = Number(e.target.value || 0);
-    drawBackground();
+    renderNodeLayer();
+    drawSelectedNodeEdges();
   });
   document.getElementById("nodeAdjacentInput").addEventListener("input", (e) => {
+    beginNodeEdit(node);
     node.adjacent_point = e.target.value;
+    drawSelectedNodeEdges();
   });
   document.getElementById("nodeDestinationInput").addEventListener("change", (e) => {
+    beginNodeEdit(node);
     node.is_destination = e.target.checked;
+    renderNodeLayer();
   });
   document.getElementById("nodeImageInput").addEventListener("input", (e) => {
+    beginNodeEdit(node);
     node.imageName = e.target.value;
   });
-  if (isEditing) {
-    document.getElementById("completeNodeEditBtn").addEventListener("click", () => {
-      state.editingNodeId = null;
-      renderNodeInfo();
-      statusEl.textContent = `ノード「${node.name}」の編集を完了しました`;
-    });
-  }
+  document.getElementById("completeNodeEditBtn").addEventListener("click", () => {
+    state.editingNodeId = null;
+    renderNodeInfo();
+    statusEl.textContent = `ノード「${node.name}」の編集を完了しました`;
+  });
+}
+
+function updateEditControls() {
+  const isEditing = state.editingNodeId === state.selectedNodeId;
+  floorSelect.disabled = isEditing;
+  document.getElementById("addNodeBtn").disabled = isEditing;
+  const actions = document.getElementById("nodeEditActions");
+  if (actions) actions.hidden = !isEditing;
+}
+
+function beginNodeEdit(node) {
+  if (state.editingNodeId === node.id) return;
+  state.editingNodeId = node.id;
+  updateEditControls();
 }
 
 function escapeHtml(text) {
@@ -253,21 +345,12 @@ function escapeHtml(text) {
     .replace(/'/g, "&#039;");
 }
 
-function findClosestNode(pointX, pointY) {
-  const rows = getFloorRows();
-  let best = null;
-  let bestDist = Infinity;
-
-  rows.forEach((row) => {
-    const p = toScreen(Number(row.x), Number(row.y));
-    const dist = Math.hypot(pointX - p.x, pointY - p.y);
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = row;
-    }
-  });
-
-  return { node: best, dist: bestDist };
+function getCanvasPoint(event) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (event.clientX - rect.left - canvas.clientLeft) * (canvas.width / canvas.clientWidth),
+    y: (event.clientY - rect.top - canvas.clientTop) * (canvas.height / canvas.clientHeight),
+  };
 }
 
 function normalizeAdjacentNodes() {
@@ -288,6 +371,7 @@ function normalizeAdjacentNodes() {
 async function loadRows() {
   const rows = await api("/api/editor/nodes");
   state.rows = parseRows(rows);
+  state.transform = null;
   if (state.selectedNodeId && !getNodeById(state.selectedNodeId)) {
     state.selectedNodeId = null;
     state.editingNodeId = null;
@@ -321,6 +405,9 @@ async function saveMapMeta() {
       body: formData,
     });
     state.mapImage = result.map_image;
+    state.mapImageName = "";
+    state.backgroundImage = null;
+    state.backgroundLayer = null;
     statusEl.textContent = `背景画像を保存しました: ${result.map_image}`;
   } else {
     await api(`/api/floors/${encodeURIComponent(state.floor)}/meta`, {
@@ -329,6 +416,7 @@ async function saveMapMeta() {
       body: JSON.stringify({ label, map_image: `map_${state.floor.toLowerCase()}.png` }),
     });
     state.mapImage = `map_${state.floor.toLowerCase()}.png`;
+    state.backgroundLayer = null;
     statusEl.textContent = `フロア情報を保存しました: ${state.floor}`;
   }
 
@@ -377,69 +465,89 @@ function addNode() {
   state.rows.push(row);
   state.selectedNodeId = row.id;
   state.editingNodeId = row.id;
+  state.transform = null;
   renderFloorOptions();
   renderNodeInfo();
   drawBackground();
 }
 
 function attachCanvasEvents() {
-  canvas.addEventListener("pointerdown", (event) => {
-    const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const { node } = findClosestNode(x, y);
+  const finishDrag = () => {
+    if (state.draggingNodeId && state.didMoveNode) {
+      normalizeAdjacentNodes();
+      renderNodeInfo();
+      drawSelectedNodeEdges();
+    }
+    state.draggingNodeId = null;
+    state.draggingButton = null;
+    state.didMoveNode = false;
+  };
+
+  nodeLayer.addEventListener("pointerdown", (event) => {
+    const button = event.target.closest(".map-node-button");
+    if (!button) return;
+    const node = getNodeById(button.dataset.nodeId);
     if (!node) return;
     if (state.editingNodeId && state.editingNodeId !== node.id) {
       statusEl.textContent = "編集中です。別のノードを選ぶには「編集完了」を押してください";
       return;
     }
 
-    state.selectedNodeId = node.id;
-    state.editingNodeId = node.id;
+    event.preventDefault();
+    selectNode(node);
+    const { x, y } = getCanvasPoint(event);
     state.draggingNodeId = node.id;
+    state.draggingButton = button;
+    state.didMoveNode = false;
     const point = toScreen(Number(node.x), Number(node.y));
     state.dragOffset = { x: x - point.x, y: y - point.y };
-    renderNodeInfo();
-    drawBackground();
+    button.setPointerCapture(event.pointerId);
   });
 
-  canvas.addEventListener("pointermove", (event) => {
+  nodeLayer.addEventListener("pointermove", (event) => {
     if (!state.draggingNodeId) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    const { x, y } = getCanvasPoint(event);
     const node = getNodeById(state.draggingNodeId);
     if (!node) return;
 
     const point = fromScreen(x - state.dragOffset.x, y - state.dragOffset.y);
-    node.x = Number(point.x.toFixed(2));
-    node.y = Number(point.y.toFixed(2));
-    renderNodeInfo();
-    drawBackground();
+    const nextX = Number(point.x.toFixed(2));
+    const nextY = Number(point.y.toFixed(2));
+    if (nextX === Number(node.x) && nextY === Number(node.y)) return;
+
+    beginNodeEdit(node);
+    state.didMoveNode = true;
+    node.x = nextX;
+    node.y = nextY;
+    if (state.draggingButton) positionNodeButton(state.draggingButton, node);
+    drawSelectedNodeEdges();
+    const xInput = document.getElementById("nodeXInput");
+    const yInput = document.getElementById("nodeYInput");
+    if (xInput) xInput.value = nextX.toFixed(2);
+    if (yInput) yInput.value = nextY.toFixed(2);
   });
 
-  canvas.addEventListener("pointerup", () => {
-    if (state.draggingNodeId) {
-      normalizeAdjacentNodes();
-      renderNodeInfo();
-      drawBackground();
+  nodeLayer.addEventListener("pointerup", finishDrag);
+  nodeLayer.addEventListener("pointercancel", finishDrag);
+  nodeLayer.addEventListener("click", (event) => {
+    if (event.detail !== 0) return;
+    const button = event.target.closest(".map-node-button");
+    const node = button && getNodeById(button.dataset.nodeId);
+    if (!node) return;
+    if (state.editingNodeId && state.editingNodeId !== node.id) {
+      statusEl.textContent = "編集中です。別のノードを選ぶには「編集完了」を押してください";
+      return;
     }
-    state.draggingNodeId = null;
-  });
-
-  canvas.addEventListener("pointerleave", () => {
-    if (state.draggingNodeId) {
-      normalizeAdjacentNodes();
-      renderNodeInfo();
-      drawBackground();
-    }
-    state.draggingNodeId = null;
+    selectNode(node);
   });
 }
 
 floorSelect.addEventListener("change", async (event) => {
   state.floor = event.target.value;
   state.selectedNodeId = null;
+  state.editingNodeId = null;
+  state.transform = null;
+  state.backgroundLayer = null;
   await loadFloorMeta();
   renderNodeInfo();
   drawBackground();
